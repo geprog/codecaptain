@@ -18,7 +18,7 @@ chatMemories = {}
 def _cleanup_chats():
     for chat_id in chatMemories.keys():
         # drop chats that are older than 5 minutes
-        if time.time() - chatMemories[chat_id].lastQuestion > 5 * 60:
+        if time.time() - chatMemories[chat_id]["lastQuestion"] > 5 * 60:
             del chatMemories[chat_id]
 
 
@@ -27,14 +27,15 @@ def _get_chat(chat_id: str):
 
     if chat_id not in chatMemories:
         chatMemories[chat_id] = {
-            memory: ConversationBufferMemory(
+            "memory": ConversationBufferMemory(
                 memory_key="chat_history", return_messages=True, output_key="answer"
             ),
+            "lastQuestion": time.time(),
         }
 
-    chatMemories[chat_id].lastQuestion = time.time()
+    chatMemories[chat_id]["lastQuestion"] = time.time()
 
-    return chatMemories[chat_id].memory
+    return chatMemories[chat_id]["memory"]
 
 
 def ask(repo_id: int, chat_id: str, question: str):

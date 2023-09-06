@@ -9,7 +9,7 @@ export default defineNuxtConfig({
       name: 'nuxt-session',
       password: 'my-super-secret-password-is-minimum-32-characters-long',
     },
-    data_path: 'data',
+    data_path: process.env.DATA_PATH ?? 'data',
     public: {
       APP_URL: 'http://localhost:3000',
     },

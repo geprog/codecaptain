@@ -52,14 +52,5 @@ export default defineEventHandler(async (event) => {
     })
     .run();
 
-  const sessionHeader = await getSessionHeader(event);
-  await $fetch(`/api/repos/${repo.id}/clone`, {
-    method: 'POST',
-    headers: {
-      // forward session header
-      ...sessionHeader,
-    },
-  });
-
   return repo;
 });

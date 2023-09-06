@@ -4,10 +4,10 @@
 
     <div class="flex flex-wrap gap-4 mt-4 mx-auto">
       <template v-if="repositories">
-        <NuxtLink v-for="repo in repositories" :key="repo.id" :to="`/repos/${repo.id}/chat`">
+        <NuxtLink v-for="repo in repositories" :key="repo.id" :to="`/repos/${repo.id}/chat`" :title="repo.name">
           <Card>
             <div class="flex flex-col items-center justify-between p-2 h-full gap-2 w-64">
-              <span class="font-bold font-semibold text-2xl mt-2">{{ repo.name }}</span>
+              <span class="font-bold font-semibold text-2xl mt-2 w-full truncate">{{ repo.name }}</span>
               <UButton size="md" icon="i-heroicons-pencil-square" variant="outline" class="mt-8" label="Chat" />
             </div>
           </Card>

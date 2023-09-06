@@ -1,6 +1,6 @@
 <template>
   <div v-if="loading || !repo" class="flex w-full items-center justify-center">
-    <span class="text-2xl">loading ...</span>
+    <span class="m-auto text-2xl">Synchronizing and indexing your repository ...</span>
   </div>
   <div v-else class="flex items-center flex-col w-full flex-grow">
     <div class="flex w-full p-2 items-center">
@@ -199,6 +199,18 @@ async function reIndex() {
   }
   loading.value = false;
 }
+
+watch(
+  repo,
+  async () => {
+    if (repo.value && !repo.value.lastFetch) {
+      await reIndex();
+    }
+  },
+  {
+    immediate: true,
+  },
+);
 </script>
 
 <style scoped>
