@@ -57,16 +57,19 @@ def ask(repo_id: int, chat_id: str, question: str):
 
     memory = _get_chat_memory(chat_id)
 
-    qa = ConversationalRetrievalChain.from_llm(
-        llm=ChatOpenAI(temperature=0),
+    agent = ConversationalRetrievalChain.from_llm(
+        llm=ChatOpenAI(temperature=0, model='gpt-3.5-turbo-16k'),
         memory=memory,
         retriever=retriever,
         return_source_documents=True,
     )
 
-    result = qa(question)
+    result = agent({'question': question})
     print(f"Answer: {result['answer']}")
     print(f"Sources: {[x.metadata['source'] for x in result['source_documents']]}")
+    
+    if memory is not None:
+        memory.save_context({'question': question}, {'answer': result['answer']})
 
     return result["answer"], [x.metadata["source"] for x in result["source_documents"]]
 
