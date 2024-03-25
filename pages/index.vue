@@ -12,7 +12,11 @@
         <NuxtLink v-for="repo in repositories" :key="repo.id" :to="`/repos/${repo.id}/chat`" :title="repo.name">
           <Card>
             <div class="flex flex-col items-center justify-between p-2 h-full gap-2 w-64">
-              <span class="font-bold font-semibold text-2xl mt-2 w-full truncate">{{ repo.name }}</span>
+              <div class="flex items-center gap-2 mt-2 mx-auto">
+                <img v-if="repo.avatarUrl" :src="repo.avatarUrl" alt="icon" class="w-6 h-6 rounded-md" />
+                <UIcon v-else name="i-ion-git-branch" class="w-6 h-6" />
+                <span class="font-semibold text-lg truncate">{{ repo.name }}</span>
+              </div>
               <UButton size="md" icon="i-heroicons-pencil-square" variant="outline" class="mt-8" label="Chat" />
             </div>
           </Card>

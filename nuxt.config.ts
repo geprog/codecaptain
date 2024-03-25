@@ -4,12 +4,13 @@ export default defineNuxtConfig({
   runtimeConfig: {
     ai: {
       url: 'http://localhost:8000',
+      token: '',
     },
     auth: {
       name: 'nuxt-session',
       password: 'my-super-secret-password-is-minimum-32-characters-long',
     },
-    data_path: process.env.DATA_PATH ?? 'data',
+    data_path: './data',
     public: {
       APP_URL: 'http://localhost:3000',
     },

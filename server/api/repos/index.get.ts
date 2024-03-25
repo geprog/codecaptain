@@ -1,18 +1,15 @@
-import { repoSchema, userReposSchema } from '../../schemas';
-import { eq, inArray } from 'drizzle-orm';
+import { repoSchema, userReposSchema } from '~/server/schemas';
+import { eq } from 'drizzle-orm';
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event);
 
-  const userRepoIds = (await db.select().from(userReposSchema).where(eq(userReposSchema.userId, user.id)).all()).map(
-    (i) => i.repoId,
-  );
+  const repos = await db
+    .select()
+    .from(repoSchema)
+    .innerJoin(userReposSchema, eq(repoSchema.id, userReposSchema.repoId))
+    .where(eq(userReposSchema.userId, user.id))
+    .all();
 
-  if (!userRepoIds || userRepoIds.length === 0) {
-    return [];
-  }
-
-  const repos = await db.select().from(repoSchema).where(inArray(repoSchema.id, userRepoIds)).all();
-
-  return repos;
+  return repos.flatMap((r) => r.repos);
 });

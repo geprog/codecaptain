@@ -1,10 +1,10 @@
-import { forgeSchema } from '../../schemas';
+import { forgeSchema } from '~/server/schemas';
 import { eq } from 'drizzle-orm';
-import { getForgeFromDB } from '../../forges';
+import { getForgeFromDB } from '~/server/forges';
 import { randomBytes } from 'crypto';
 
 export default defineEventHandler(async (event) => {
-  const forgeId = getQuery(event).forgeId as string;
+  const forgeId = getQuery<{ forgeId: string }>(event).forgeId;
   if (!forgeId) {
     throw new Error('Forge id is undefined');
   }

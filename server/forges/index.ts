@@ -1,5 +1,5 @@
 import { Gitlab } from './gitlab';
-import { Forge as ForgeModel, userForgesSchema } from '../schemas';
+import { Forge as ForgeModel, userForgesSchema } from '~/server/schemas';
 import { Github } from './github';
 import { Credentials, Forge, ForgeUser, Issue, PaginatedList, Pagination, Repo, Tokens, UserWithTokens } from './types';
 import { eq } from 'drizzle-orm';

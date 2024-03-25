@@ -1,5 +1,5 @@
 import { eq, or, inArray } from 'drizzle-orm';
-import { forgeSchema, userForgesSchema } from '../../schemas';
+import { forgeSchema, userForgesSchema } from '~/server/schemas';
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event);

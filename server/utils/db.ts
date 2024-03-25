@@ -4,6 +4,8 @@ import path from 'path';
 
 import Database from 'better-sqlite3';
 
-const sqlite = new Database(path.join(process.env.DATA_PATH || 'data', 'code_captain.db'));
+const config = useRuntimeConfig();
+
+const sqlite = new Database(path.join(config.data_path, 'code_captain.db'));
 
 export const db: BetterSQLite3Database = drizzle(sqlite);

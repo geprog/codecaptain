@@ -16,7 +16,7 @@
       <div class="px-6 py-2">
         <h2 class="px-2 mb-2 text-lg font-semibold tracking-tight">Workspace</h2>
         <div class="space-y-1">
-          <MenuItem to="/" title="Repos" icon="i-ion-ios-chatboxes" />
+          <MenuItem to="/" title="Repos" icon="i-mdi-source-branch" />
           <MenuItem to="/settings" title="Settings" icon="i-ion-ios-settings" />
           <MenuItem to="https://geprog.com" title="Geprog" icon="i-ion-android-favorite-outline" target="_blank" />
         </div>
@@ -27,7 +27,12 @@
           <div data-radix-scroll-area-viewport="" class="h-full w-full rounded-[inherit]">
             <div class="p-2 space-y-1">
               <div v-for="repo in repos" :key="repo.id">
-                <MenuItem :to="`/repos/${repo.id}/chat`" :title="repo.name" icon="i-ion-ios-repeat" />
+                <MenuItem
+                  :to="`/repos/${repo.id}/chat`"
+                  :title="repo.name"
+                  :img="repo.avatarUrl || undefined"
+                  icon="i-mdi-source-branch"
+                />
               </div>
 
               <MenuItem to="/repos/add" title="Add repo" icon="i-heroicons-plus" />
@@ -68,10 +73,9 @@
 
 <script setup lang="ts">
 const { user, logout } = await useAuth();
-
-const { data: repos } = await useFetch('/api/repos');
-
 const colorMode = useColorMode();
+const { repos } = await useRepositoriesStore();
+
 const isDark = computed({
   get() {
     return colorMode.value === 'dark';

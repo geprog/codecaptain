@@ -1,4 +1,4 @@
-import { forgeSchema } from '../../schemas';
+import { forgeSchema } from '~/server/schemas';
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event);

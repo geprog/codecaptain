@@ -37,13 +37,13 @@ import { z } from 'zod';
 const forgeTypes = ['gitlab']; // TODO: support other forges
 
 const toast = useToast();
-const { reloadForges } = await useForgesStore();
+const forgesStore = await useForgesStore();
 
 const schema = z.object({
-  host: z.string().nonempty(),
+  host: z.string().min(1),
   type: z.enum(['gitlab']),
-  clientId: z.string().nonempty(),
-  clientSecret: z.string().nonempty(),
+  clientId: z.string().min(1),
+  clientSecret: z.string().min(1),
 });
 
 const newForge = ref<Partial<z.infer<typeof schema>>>({
@@ -63,7 +63,7 @@ async function submit() {
     body: newForge.value,
   });
 
-  await reloadForges();
+  await forgesStore.refresh();
 
   await navigateTo(`/`);
 

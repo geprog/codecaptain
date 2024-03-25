@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3';
 import { Forge, Credentials, Tokens, ForgeUser, Repo, PaginatedList, Pagination, Issue } from './types';
-import { Forge as DBForge } from '../schemas';
+import { Forge as DBForge } from '~/server/schemas';
 import { Octokit } from 'octokit';
 import type { ResponseHeaders } from '@octokit/types';
 
@@ -145,6 +145,7 @@ export class Github implements Forge {
             forgeId: this.forgeId,
             url: repo.url,
             defaultBranch: repo.default_branch,
+            avatarUrl: repo.owner?.avatar_url,
           }) satisfies Repo,
       ),
       total: this.getTotalPagesFromHeaders(repos.headers) * perPage,
@@ -165,6 +166,7 @@ export class Github implements Forge {
       forgeId: this.forgeId,
       url: repo.data.html_url,
       defaultBranch: repo.data.default_branch,
+      avatarUrl: repo.data.owner?.avatar_url,
     };
   }
 

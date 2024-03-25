@@ -1,5 +1,5 @@
-import { RepoFromDB, repoSchema, userReposSchema } from '../../../../schemas';
-import { and, eq, inArray } from 'drizzle-orm';
+import { repoSchema, userReposSchema } from '~/server/schemas';
+import { and, eq } from 'drizzle-orm';
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event);
@@ -14,32 +14,30 @@ export default defineEventHandler(async (event) => {
 
   const forge = await getUserForgeAPI(user, parseInt(forgeId, 10));
 
-  const search = ((getQuery(event)?.search as string | undefined) || '').trim();
+  const query = getQuery<{ search?: string }>(event);
+  const search = query?.search?.trim() || '';
 
   // TODO: use caching along with the db query
-  let activeRepos: RepoFromDB[] = [];
-  const repoIdsForUser = await db.select().from(userReposSchema).where(eq(userReposSchema.userId, user.id)).all();
-  if (repoIdsForUser && repoIdsForUser.length !== 0) {
-    activeRepos = await db
+  const activeRepos = (
+    await db
       .select()
       .from(repoSchema)
-      .where(
-        and(
-          inArray(
-            repoSchema.id,
-            repoIdsForUser.map((r) => r.repoId),
-          ),
-          eq(repoSchema.forgeId, Number(forgeId)),
-        ),
-      )
-      .all();
-  }
+      .innerJoin(userReposSchema, eq(repoSchema.id, userReposSchema.repoId))
+      .where(and(eq(repoSchema.forgeId, Number(forgeId)), eq(userReposSchema.userId, user.id)))
+      .all()
+  ).map((r) => r.repos);
 
-  const userRepos = await forge.getRepos(search);
+  console.log('activeRepos', activeRepos);
 
-  return userRepos.items.map((repo) => ({
-    id: repo.id.toString(),
-    name: repo.name,
-    active: activeRepos.map((ar) => ar.id).includes(repo.id),
-  }));
+  const forgeRepos = await forge.getRepos(search);
+
+  return forgeRepos.items.map((repo) => {
+    const internalRepo = activeRepos.find((r) => r.remoteId === repo.id.toString());
+    return {
+      remoteId: repo.id.toString(),
+      internalId: internalRepo?.id,
+      name: repo.name,
+      avatarUrl: repo.avatarUrl,
+    };
+  });
 });

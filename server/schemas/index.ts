@@ -20,15 +20,21 @@ export const forgeSchema = sqliteTable('forges', {
 });
 export type Forge = InferSelectModel<typeof forgeSchema>;
 
-export const userForgesSchema = sqliteTable('userForges', {
-  id: integer('id').primaryKey(),
-  userId: integer('userId').notNull(),
-  forgeId: integer('forgeId').notNull(),
-  remoteUserId: text('remoteUserId').notNull(),
-  accessToken: text('accessToken').notNull(),
-  accessTokenExpiresIn: integer('accessTokenExpiresIn').notNull(),
-  refreshToken: text('refreshToken'),
-});
+export const userForgesSchema = sqliteTable(
+  'userForges',
+  {
+    id: integer('id').primaryKey(),
+    userId: integer('userId').notNull(),
+    forgeId: integer('forgeId').notNull(),
+    remoteUserId: text('remoteUserId').notNull(),
+    accessToken: text('accessToken').notNull(),
+    accessTokenExpiresIn: integer('accessTokenExpiresIn').notNull(),
+    refreshToken: text('refreshToken'),
+  },
+  (t) => ({
+    userIdForgeId: unique('uniqueUserIdForgeId').on(t.userId, t.forgeId),
+  }),
+);
 
 export const repoSchema = sqliteTable(
   'repos',
@@ -40,7 +46,8 @@ export const repoSchema = sqliteTable(
     url: text('url').notNull(),
     cloneUrl: text('cloneUrl').notNull(),
     defaultBranch: text('defaultBranch').notNull(),
-    lastFetch: integer('lastIndex', { mode: 'timestamp' }),
+    lastFetch: integer('lastFetch', { mode: 'timestamp' }),
+    avatarUrl: text('avatarUrl'),
   },
   (table) => ({
     forgeRemoteId: unique('uniqueForgeRemoteId').on(table.forgeId, table.remoteId),

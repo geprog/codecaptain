@@ -1,4 +1,4 @@
-import { forgeSchema, userForgesSchema } from '../../../schemas';
+import { forgeSchema, userForgesSchema } from '~/server/schemas';
 import { eq, and } from 'drizzle-orm';
 
 export default defineEventHandler(async (event) => {

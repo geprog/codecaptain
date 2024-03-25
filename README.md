@@ -21,3 +21,4 @@ Codecaptain is using [Drizzle ORM](https://orm.drizzle.team) and sqlite.
 ## Appreciations
 
 - https://hackernoon.com/reverse-engineering-reddits-source-code-with-langchain-and-gpt-4
+- https://js.langchain.com/docs/use_cases/code_understanding

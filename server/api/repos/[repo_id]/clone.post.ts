@@ -1,8 +1,14 @@
-import * as path from 'path';
+import path from 'node:path';
 import { simpleGit } from 'simple-git';
-import { promises as fs } from 'fs';
 import { repoSchema } from '~/server/schemas';
 import { eq } from 'drizzle-orm';
+import { TextLoader } from 'langchain/document_loaders/fs/text';
+import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
+import { OpenAIEmbeddings } from '@langchain/openai';
+import weaviate from 'weaviate-ts-client';
+import { WeaviateStore } from '@langchain/weaviate';
+import { Document } from 'langchain/document';
+import { Glob } from 'glob';
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event);
@@ -20,101 +26,233 @@ export default defineEventHandler(async (event) => {
 
   const config = useRuntimeConfig();
   const folder = path.join(config.data_path, repo.id.toString());
+  const repoPath = path.join(folder, 'repo');
 
-  await createDataFolder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const log = (...d: unknown[]) => {
+        console.log(...d);
+        controller.enqueue(...d.map((d) => (typeof d === 'string' ? d : JSON.stringify(d))));
+      };
 
-  const userForgeApi = await getUserForgeAPI(user, repo.forgeId);
+      try {
+        await createDataFolder();
 
-  if (!(await dirExists(path.join(folder, 'repo')))) {
-    const cloneCredentials = await userForgeApi.getCloneCredentials();
-    const cloneUrl = repo.cloneUrl.replace(
-      'https://',
-      `https://${cloneCredentials.username}:${cloneCredentials.password}@`,
-    );
+        const userForgeApi = await getUserForgeAPI(user, repo.forgeId);
 
-    let log = await simpleGit().clone(cloneUrl, path.join(folder, 'repo'));
-    console.log('cloned', log);
-  } else {
-    const cloneCredentials = await userForgeApi.getCloneCredentials();
-    const cloneUrl = repo.cloneUrl.replace(
-      'https://',
-      `https://${cloneCredentials.username}:${cloneCredentials.password}@`,
-    );
+        const forgeRepo = await userForgeApi.getRepo(repo.remoteId.toString());
 
-    await simpleGit(path.join(folder, 'repo')).removeRemote('origin');
-    await simpleGit(path.join(folder, 'repo')).addRemote('origin', cloneUrl);
+        await db
+          .update(repoSchema)
+          .set({
+            name: forgeRepo.name,
+            url: forgeRepo.url,
+            cloneUrl: forgeRepo.cloneUrl,
+            defaultBranch: forgeRepo.defaultBranch,
+            avatarUrl: forgeRepo.avatarUrl,
+          })
+          .where(eq(repoSchema.id, repo.id))
+          .run();
 
-    let log = await simpleGit(path.join(folder, 'repo')).pull('origin', repo.defaultBranch);
-    console.log('pulled', log);
-  }
+        const cloneCredentials = await userForgeApi.getCloneCredentials();
+        const cloneUrl = repo.cloneUrl.replace(
+          'https://',
+          `https://${cloneCredentials.username}:${cloneCredentials.password}@`,
+        );
 
-  // write issues
-  if (!(await dirExists(path.join(folder, 'issues')))) {
-    await fs.mkdir(path.join(folder, 'issues'), { recursive: true });
-  } else {
-    await fs.rm(path.join(folder, 'issues'), { recursive: true });
-    await fs.mkdir(path.join(folder, 'issues'), { recursive: true });
-  }
+        const e = await dirExists(repoPath);
+        console.log({ cloneUrl, repoPath, dir: e, c: config.data_path });
 
-  let page = 1;
-  const perPage = 50;
-  const since = repo.lastFetch || undefined;
-  console.log('fetching issues since', since, '...');
-  while (true) {
-    const { items: issues, total } = await userForgeApi.getIssues(repo.remoteId.toString(), {
-      page,
-      perPage,
-      since,
-    });
-    for await (const issue of issues) {
-      let issueString = `# issue "${issue.title}" (${issue.number})`;
-      if (issue.labels.length !== 0) {
-        issueString += `\n\nLabels: ` + issue.labels.join(', ');
+        if (!e) {
+          log('cloning repo ...');
+          let cloneLogs = await simpleGit().clone(cloneUrl, repoPath);
+          log('cloned repo', cloneLogs);
+        } else {
+          log('pulling changes ...');
+          await simpleGit(repoPath).removeRemote('origin');
+          await simpleGit(repoPath).addRemote('origin', cloneUrl);
+          await simpleGit(repoPath).pull('origin', repo.defaultBranch);
+          log('pulled latest changes');
+        }
+
+        log('indexing ...');
+
+        const docs: Document[] = [];
+
+        // index issues
+        let page = 1;
+        const perPage = 50;
+        const since = repo.lastFetch || undefined;
+        log('fetching issues since', since, '...');
+        while (true) {
+          const { items: issues, total } = await userForgeApi.getIssues(repo.remoteId.toString(), {
+            page,
+            perPage,
+            since,
+          });
+          for await (const issue of issues) {
+            let issueString = `# issue "${issue.title}" (${issue.number})`;
+            if (issue.labels.length !== 0) {
+              issueString += `\n\nLabels: ` + issue.labels.join(', ');
+            }
+            if (issue.description !== '') {
+              issueString += `\n\n${issue.description}`;
+            }
+            if (issue.comments.length !== 0) {
+              issueString +=
+                `\n\n## Comments:\n` +
+                issue.comments.map((comment) => `- ${comment.author.login}: ${comment.body}`).join('\n');
+            }
+            const doc = new Document({
+              pageContent: issueString,
+              metadata: { issueId: issue.number, type: 'issue' },
+            });
+            docs.push(doc);
+          }
+
+          if (issues.length < perPage || page * perPage >= total) {
+            break;
+          }
+          page += 1;
+        }
+
+        log(`indexed ${page * perPage} issues`);
+
+        const javascriptSplitter = RecursiveCharacterTextSplitter.fromLanguage('js', {
+          chunkSize: 2000,
+          chunkOverlap: 200,
+        });
+
+        // extensions of source code files to index
+        const includeExtensions = [
+          'js',
+          'jsx',
+          'ts',
+          'tsx',
+          'json',
+          'md',
+          'html',
+          'yaml',
+          'yml',
+          'go',
+          'txt',
+          'sh',
+          'java',
+          'py',
+          'rb',
+          'php',
+          'c',
+          'cpp',
+          'h',
+          'hpp',
+          'cs',
+          'swift',
+          'kt',
+          'kts',
+          'ktm',
+          'rs',
+          'vue',
+          'svelte',
+          'graphql',
+          'gql',
+          'gradle',
+          'bat',
+          'properties',
+          'lua',
+          // 'css',
+          // 'scss',
+          // 'less',
+          // 'sass',
+        ];
+
+        // ignore these directories and files
+        const ignore = [
+          '**/node_modules/**',
+          '**/dist/**',
+          '**/build/**',
+          '**/coverage/**',
+          '**/tmp/**',
+          '**/temp/**',
+          '**/vendor/**',
+          '**/out/**',
+          '**/target/**',
+          '**/lib/**',
+          '**/dll/**',
+          '**/bin/**',
+          'pnpm-lock.yaml',
+          'package-lock.json',
+        ];
+        const glob = new Glob(`**/*.{${includeExtensions.join(',')}}`, {
+          cwd: repoPath,
+          nocase: true,
+          ignore,
+        });
+        for await (const file of glob) {
+          const loader = new TextLoader(path.join(repoPath, file));
+          const fileDocs = await loader.load();
+          docs.push(
+            ...fileDocs.map((d) => {
+              d.metadata.source = file;
+              return d;
+            }),
+          );
+
+          console.log('indexing', file);
+
+          // switch (path.extname(file)) {
+          //   case '.js':
+          //   case '.ts':
+          //   case '.jsx':
+          //   case '.tsx':
+          //     const texts = await javascriptSplitter.splitDocuments(fileDocs);
+          //     docs.push(...texts);
+          //     break;
+          //   default:
+          //     docs.push(...fileDocs);
+          //     break;
+          // }
+        }
+
+        console.log({ docs: docs.length });
+
+        const weaviateClient = weaviate.client({
+          scheme: process.env.WEAVIATE_SCHEME || 'http',
+          host: process.env.WEAVIATE_HOST || 'localhost:8080',
+          // apiKey: new ApiKey(process.env.WEAVIATE_API_KEY || 'default'),
+        });
+
+        await WeaviateStore.fromDocuments(
+          docs,
+          new OpenAIEmbeddings({
+            openAIApiKey: config.ai.token,
+          }),
+          {
+            client: weaviateClient,
+            indexName: `Repo${repoId}`,
+          },
+        );
+
+        await db
+          .update(repoSchema)
+          .set({
+            lastFetch: new Date(),
+          })
+          .where(eq(repoSchema.id, repo.id))
+          .run();
+
+        log('done indexing');
+      } catch (e) {
+        log('error', e);
+        controller.error(e);
+      } finally {
+        controller.close();
       }
-      if (issue.description !== '') {
-        issueString += `\n\n${issue.description}`;
-      }
-      if (issue.comments.length !== 0) {
-        issueString +=
-          `\n\n## Comments:\n` +
-          issue.comments.map((comment) => `- ${comment.author.login}: ${comment.body}`).join('\n');
-      }
-      await fs.writeFile(path.join(folder, 'issues', `${issue.number}.md`), issueString);
-    }
-
-    if (issues.length < perPage || page * perPage >= total) {
-      break;
-    }
-    page += 1;
-  }
-
-  console.log(`wrote ${page * perPage} issues`);
-
-  await db
-    .update(repoSchema)
-    .set({
-      lastFetch: new Date(),
-    })
-    .where(eq(repoSchema.id, repo.id))
-    .run();
-
-  console.log('start indexing ...');
-  const indexingResponse = await $fetch<{ error?: string }>(`${config.ai.url}/index`, {
-    method: 'POST',
-    body: {
-      repo_id: repo.id,
     },
   });
 
-  if (indexingResponse.error) {
-    console.error(indexingResponse.error);
-    throw createError({
-      statusCode: 500,
-      statusMessage: 'cannot index repo',
-    });
-  }
+  setResponseHeader(event, 'Content-Type', 'text/html');
+  setResponseHeader(event, 'Cache-Control', 'no-cache');
+  setResponseHeader(event, 'Transfer-Encoding', 'chunked');
 
-  console.log('done indexing');
-
-  return 'ok';
+  return sendStream(event, stream);
 });

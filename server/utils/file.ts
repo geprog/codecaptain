@@ -1,11 +1,11 @@
-import * as fs from 'fs/promises';
-import * as path from 'path';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 
-export async function dirExists(path: string) {
+export async function dirExists(_path: string) {
   try {
-    const stat = await fs.stat(path);
+    const stat = await fs.stat(_path);
     return stat.isDirectory();
-  } catch {
+  } catch (e) {
     return false;
   }
 }

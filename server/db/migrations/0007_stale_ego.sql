@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `uniqueUserIdForgeId` ON `userForges` (`userId`,`forgeId`);

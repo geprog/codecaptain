@@ -1,29 +1,19 @@
 <template>
   <div class="flex w-full">
-    <div v-if="loading" class="flex w-full">
-      <span class="m-auto text-2xl">Cloning and indexing your repository ...</span>
-    </div>
+    <div class="mx-auto flex flex-col items-center max-w-2xl w-full">
+      <h1 class="text-2xl mb-4">Add a new repository</h1>
 
-    <div v-else-if="!selectedForge">
-      <h1 class="text-2xl mb-4">Select a forge</h1>
+      <div class="flex mb-4 w-full gap-2">
+        <USelectMenu
+          v-model="selectedForge"
+          color="primary"
+          variant="outline"
+          :options="forges || []"
+          option-attribute="host"
+          placeholder="Select a forge ..."
+          class="w-1/2"
+        />
 
-      <div class="flex flex-col flex-wrap gap-4 mt-2">
-        <Card v-for="forge in forges" :key="forge.id" class="flex items-center px-2 py-4 gap-2">
-          <UIcon name="i-ion-git-branch" class="!w-16" />
-          <span class="font-bold flex-wrap truncate overflow-ellipsis">{{ forge.host }}</span>
-
-          <div class="flex-grow" />
-
-          <UButton v-if="forge.isConnected" label="Select" @click="selectedForgeId = forge.id" />
-          <UButton v-else label="Connect to forge" @click="login(forge.id)" />
-        </Card>
-      </div>
-    </div>
-
-    <div v-else class="mx-auto flex flex-col items-center max-w-2xl w-full">
-      <h1 class="text-2xl mb-4">Add a new repository from {{ selectedForge.host }}</h1>
-
-      <div class="mb-4 w-full">
         <UInput
           color="primary"
           variant="outline"
@@ -32,24 +22,28 @@
           :disabled="!selectedForge"
           size="lg"
           icon="i-heroicons-magnifying-glass-20-solid"
+          class="w-1/2"
           @update:model-value="updateSearch"
         />
       </div>
 
-      <div v-if="selectedForge" class="w-full rounded-md border border-zinc-400">
-        <div v-if="search.length < 3" class="p-4">Start typing to search for a repository</div>
+      <div class="w-full rounded-md border border-zinc-400">
+        <div v-if="loading" class="p-4">Loading ...</div>
+
         <div v-else-if="!repositories || repositories.length === 0" class="p-4">No repository found</div>
 
         <div
-          v-for="repo in repositories"
-          :key="repo.id"
+          v-else
+          v-for="repo in repositories?.slice(0, 5) || []"
+          :key="repo.remoteId"
           class="flex border-b border-zinc-200 items-center px-2 py-4 gap-2 w-full min-w-0"
         >
-          <UIcon name="i-ion-git-branch" class="!w-16" />
+          <img v-if="repo.avatarUrl" :src="repo.avatarUrl" alt="icon" class="w-6 h-6 rounded-md" />
+          <UIcon v-else name="i-ion-git-branch" class="w-6 h-6" />
           <span class="font-bold flex-wrap truncate overflow-ellipsis">{{ repo.name }}</span>
           <div class="flex-grow" />
-          <UButton v-if="repo.active" :href="`/repos/${repo.id}/chat`" label="Open" />
-          <UButton v-else @click="cloneRepo(repo.id)" label="Import" />
+          <UButton v-if="repo.internalId" :to="`/repos/${repo.internalId}/chat`" label="Open" />
+          <UButton v-else @click="addRepo(repo.remoteId)" label="Add" />
         </div>
       </div>
     </div>
@@ -57,26 +51,54 @@
 </template>
 
 <script setup lang="ts">
-const { login } = await useAuth();
-const loading = ref(false);
-const { data: forges } = await useFetch('/api/user/forges');
-const selectedForgeId = ref();
-const selectedForge = computed(() => forges.value?.find((f) => f.id === selectedForgeId.value));
+import type { Forge } from '~/server/schemas';
+
+const reposStore = await useRepositoriesStore();
+const toast = useToast();
+
+const { data: forges } = await useFetch<Forge[]>('/api/user/forges', {
+  default: () => [],
+});
+const selectedForge = ref<Forge>();
+
+watch(
+  forges,
+  () => {
+    if (!selectedForge.value && forges.value?.length) {
+      selectedForge.value = forges.value[0];
+    }
+  },
+  { immediate: true },
+);
 
 const search = ref('');
+const loading = ref(false);
 const { data: repositories } = await useAsyncData(
-  () => {
-    if (!selectedForge.value || search.value.length < 1) {
+  async () => {
+    if (!selectedForge.value) {
       return Promise.resolve([]);
     }
 
-    return $fetch(`/api/forges/${selectedForge.value.id}/repos/search`, {
-      method: 'GET',
-      query: {
-        search: search.value,
-      },
-      credentials: 'include', // TODO why unauthorized?
-    });
+    loading.value = true;
+
+    try {
+      const repos = await $fetch(`/api/forges/${selectedForge.value.id}/repos/search`, {
+        method: 'GET',
+        query: {
+          search: search.value,
+        },
+      });
+
+      return repos;
+    } catch (error) {
+      toast.add({
+        title: 'Error',
+        description: (error as Error).message,
+        color: 'red',
+      });
+    } finally {
+      loading.value = false;
+    }
   },
   {
     watch: [search, selectedForge],
@@ -95,8 +117,7 @@ const updateSearch = debounce((_search: string) => {
   search.value = _search;
 }, 500);
 
-async function cloneRepo(remoteRepoId: string) {
-  loading.value = true;
+async function addRepo(remoteRepoId: string) {
   const forgeId = selectedForge.value?.id;
   if (!forgeId) {
     throw new Error('No forge selected');
@@ -109,11 +130,14 @@ async function cloneRepo(remoteRepoId: string) {
         remoteRepoId,
       },
     });
+    await reposStore.refresh();
     await navigateTo(`/repos/${repo.id}/chat`);
   } catch (error) {
-    console.error(error);
+    toast.add({
+      title: 'Error',
+      description: (error as Error).message,
+      color: 'red',
+    });
   }
-
-  loading.value = false;
 }
 </script>

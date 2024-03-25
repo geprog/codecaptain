@@ -1,7 +1,7 @@
 import type { H3Event } from 'h3';
-import { User, forgeSchema, userForgesSchema, userSchema } from '../../schemas';
+import { User, forgeSchema, userForgesSchema, userSchema } from '~/server/schemas';
 import { and, eq } from 'drizzle-orm';
-import { getForgeFromDB } from '../../forges';
+import { getForgeFromDB } from '~/server/forges';
 
 async function loginUser(event: H3Event, user: User) {
   const session = await useAuthSession(event);
@@ -62,7 +62,15 @@ export default defineEventHandler(async (event) => {
         accessTokenExpiresIn: tokens.accessTokenExpiresIn,
         refreshToken: tokens.refreshToken,
       })
-      .onConflictDoNothing()
+      .onConflictDoUpdate({
+        target: [userForgesSchema.userId, userForgesSchema.forgeId],
+        set: {
+          remoteUserId: oauthUser.remoteUserId,
+          accessToken: tokens.accessToken,
+          accessTokenExpiresIn: tokens.accessTokenExpiresIn,
+          refreshToken: tokens.refreshToken,
+        },
+      })
       .run();
 
     return loginUser(event, user);
@@ -91,6 +99,16 @@ export default defineEventHandler(async (event) => {
       .where(eq(userSchema.id, userForge.userId))
       .returning()
       .get();
+
+    await db
+      .update(userForgesSchema)
+      .set({
+        accessToken: tokens.accessToken,
+        accessTokenExpiresIn: tokens.accessTokenExpiresIn,
+        refreshToken: tokens.refreshToken,
+      })
+      .where(eq(userForgesSchema.id, userForge.id))
+      .run();
 
     return loginUser(event, user);
   }

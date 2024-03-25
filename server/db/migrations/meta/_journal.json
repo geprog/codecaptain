@@ -43,6 +43,27 @@
       "when": 1693981317748,
       "tag": "0005_free_flatman",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1711118981936,
+      "tag": "0006_groovy_tyger_tiger",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1711125132515,
+      "tag": "0007_stale_ego",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1711183282653,
+      "tag": "0008_dapper_jane_foster",
+      "breakpoints": true
     }
   ]
 }

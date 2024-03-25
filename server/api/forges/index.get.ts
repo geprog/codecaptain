@@ -1,5 +1,4 @@
-import { isNull } from 'drizzle-orm';
-import { forgeSchema } from '../../schemas';
+import { forgeSchema } from '~/server/schemas';
 
 export default defineEventHandler(async (event) => {
   const forges = await db.select().from(forgeSchema).all();

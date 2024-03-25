@@ -1,17 +1,15 @@
 import type { H3Event, SessionConfig } from 'h3';
 import { User, forgeSchema, repoSchema, userForgesSchema, userReposSchema, userSchema } from '../schemas';
 import { and, eq } from 'drizzle-orm';
-import { getForgeFromDB, ForgeApi } from '../forges';
-
-const sessionConfig: SessionConfig = useRuntimeConfig().auth || {};
+import { getForgeFromDB, ForgeApi } from '~/server/forges';
 
 export type AuthSession = {
   userId: number;
 };
 
 export async function useAuthSession(event: H3Event) {
-  const session = await useSession<AuthSession>(event, sessionConfig);
-  return session;
+  const sessionConfig = useRuntimeConfig().auth || {};
+  return await useSession<AuthSession>(event, sessionConfig);
 }
 
 export async function getUser(event: H3Event): Promise<User | undefined> {
@@ -94,38 +92,4 @@ export async function requireAccessToRepo(user: User, repoId: number) {
   }
 
   return repo;
-}
-
-export async function getSessionHeader(event: H3Event) {
-  const config = useRuntimeConfig();
-
-  const sessionName = config.auth.name || 'h3';
-
-  let sealedSession: string | undefined;
-
-  // Try header first
-  if (config.sessionHeader !== false) {
-    const headerName =
-      typeof config.sessionHeader === 'string'
-        ? config.sessionHeader.toLowerCase()
-        : `x-${sessionName.toLowerCase()}-session`;
-    const headerValue = event.node.req.headers[headerName];
-    if (typeof headerValue === 'string') {
-      sealedSession = headerValue;
-    }
-  }
-
-  // Fallback to cookies
-  if (!sealedSession) {
-    sealedSession = getCookie(event, sessionName);
-  }
-
-  if (!sealedSession) {
-    throw createError({
-      statusCode: 401,
-      statusMessage: 'Unauthorized',
-    });
-  }
-
-  return { [`x-${sessionName.toLowerCase()}-session`]: sealedSession };
 }

@@ -1,5 +1,5 @@
 import { H3Event } from 'h3';
-import { User } from '../schemas';
+import { User } from '~/server/schemas';
 
 export type Tokens = { accessToken: string; accessTokenExpiresIn: number; refreshToken: string | null };
 
@@ -30,6 +30,7 @@ export type Repo = {
   forgeId: number;
   id: number;
   url: string;
+  avatarUrl?: string;
 };
 
 export type Comment = {

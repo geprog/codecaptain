@@ -1,4 +1,4 @@
-import { repoSchema, userReposSchema } from '../../../../schemas';
+import { repoSchema, userReposSchema } from '~/server/schemas';
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event);
@@ -32,6 +32,8 @@ export default defineEventHandler(async (event) => {
       remoteId: forgeRepo.id.toString(),
       url: forgeRepo.url,
       forgeId: forgeRepo.forgeId,
+      defaultBranch: forgeRepo.defaultBranch,
+      avatarUrl: forgeRepo.avatarUrl,
     })
     .onConflictDoUpdate({
       target: [repoSchema.forgeId, repoSchema.remoteId],
@@ -51,15 +53,6 @@ export default defineEventHandler(async (event) => {
       repoId: repo.id,
     })
     .run();
-
-  const sessionHeader = await getSessionHeader(event);
-  await $fetch(`/api/repos/${repo.id}/clone`, {
-    method: 'POST',
-    headers: {
-      // forward session header
-      ...sessionHeader,
-    },
-  });
 
   return repo;
 });

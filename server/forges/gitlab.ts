@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3';
 import { Forge, Tokens, Credentials, ForgeUser, Repo, Pagination, PaginatedList, Issue } from './types';
-import { Forge as DBForge } from '../schemas';
+import { Forge as DBForge } from '~/server/schemas';
 import { Gitlab as GitlabApi } from '@gitbeaker/rest';
 
 export class Gitlab implements Forge {
@@ -72,8 +72,6 @@ export class Gitlab implements Forge {
       throw new Error('Error getting access token');
     }
 
-    console.log('Got access token', response);
-
     return {
       accessToken: response.access_token,
       accessTokenExpiresIn: response.expires_in,
@@ -115,6 +113,7 @@ export class Gitlab implements Forge {
         forgeId: this.forgeId,
         cloneUrl: repo.http_url_to_repo,
         defaultBranch: repo.default_branch,
+        avatarUrl: this.sanitizeAvatarUrl(repo.avatar_url || repo.namespace.avatar_url),
       })),
       total: repos.length,
     };
@@ -131,6 +130,7 @@ export class Gitlab implements Forge {
       forgeId: this.forgeId,
       cloneUrl: repo.http_url_to_repo,
       defaultBranch: repo.default_branch,
+      avatarUrl: this.sanitizeAvatarUrl(repo.avatar_url || repo.namespace.avatar_url),
     };
   }
 
@@ -155,5 +155,17 @@ export class Gitlab implements Forge {
       })),
       total: paginationInfo.total,
     };
+  }
+
+  private sanitizeAvatarUrl(avatarUrl: string | undefined): string | undefined {
+    if (!avatarUrl) {
+      return undefined;
+    }
+
+    if (avatarUrl.startsWith('/')) {
+      return avatarUrl.replace('/', `https://${this.host}/`);
+    }
+
+    return avatarUrl;
   }
 }

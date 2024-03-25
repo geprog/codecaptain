@@ -1,5 +1,7 @@
 export async function useForgesStore() {
-  const { data: forges, refresh: reloadForges } = await useFetch('/api/user/forges');
+  const { data: forges, refresh } = await useFetch('/api/user/forges', {
+    default: () => [],
+  });
 
-  return { forges, reloadForges };
+  return { forges, refresh };
 }

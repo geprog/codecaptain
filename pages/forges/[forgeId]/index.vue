@@ -2,13 +2,7 @@
   <div v-if="forge" class="flex flex-col w-full items-center">
     <h1 class="text-2xl mb-8">{{ forge.host }}</h1>
 
-    <UForm
-      ref="form"
-      :schema="schema"
-      :state="forge"
-      @submit.prevent="submit"
-      class="flex flex-col w-full max-w-2xl gap-2"
-    >
+    <UForm ref="form" :schema="schema" :state="forge" @submit="submit" class="flex flex-col w-full max-w-2xl gap-2">
       <UFormGroup label="Host" name="host">
         <UInput v-model="forge.host" disabled />
       </UFormGroup>
@@ -42,7 +36,7 @@ const schema = z.object({
 });
 
 const route = useRoute();
-const { reloadForges } = await useForgesStore();
+const forgesStore = await useForgesStore();
 const forgeId = route.params.forgeId;
 const { data: forge } = await useFetch(`/api/forges/${forgeId}`);
 
@@ -58,7 +52,7 @@ async function submit() {
     body: forge.value,
   });
 
-  await reloadForges();
+  await forgesStore.refresh();
 
   toast.add({
     title: 'Forge updated',
@@ -80,7 +74,7 @@ async function deleteForge() {
     method: 'DELETE',
   });
 
-  await reloadForges();
+  await forgesStore.refresh();
 
   toast.add({
     title: 'Forge removed',
